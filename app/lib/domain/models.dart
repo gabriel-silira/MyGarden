@@ -119,6 +119,22 @@ class SensorReading {
   final double? temperature;
   final DateTime timestamp;
   final DataSource source;
+  Map<String, dynamic> toJson() => {
+    'plantId': plantId,
+    'deviceId': deviceId,
+    'moisture': moisture,
+    'temperature': temperature,
+    'timestamp': timestamp.toUtc().toIso8601String(),
+    'source': source.name,
+  };
+  factory SensorReading.fromJson(Map<String, dynamic> json) => SensorReading(
+    plantId: json['plantId'] as String,
+    deviceId: json['deviceId'] as String,
+    moisture: (json['moisture'] as num).toDouble(),
+    temperature: (json['temperature'] as num?)?.toDouble(),
+    timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
+    source: DataSource.values.byName(json['source'] as String),
+  );
   SoilCondition condition(IrrigationPreferences preferences) =>
       moisture < preferences.minimum
       ? SoilCondition.dry
@@ -142,6 +158,26 @@ class IrrigationEvent {
   final IrrigationMode mode;
   final Duration duration;
   final DataSource source;
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'plantId': plantId,
+    'timestamp': timestamp.toUtc().toIso8601String(),
+    'mode': mode.name,
+    'durationMicroseconds': duration.inMicroseconds,
+    'source': source.name,
+  };
+  factory IrrigationEvent.fromJson(Map<String, dynamic> json) {
+    final duration = json['durationMicroseconds'] as int;
+    if (duration < 0) throw const FormatException('Duração inválida.');
+    return IrrigationEvent(
+      id: json['id'] as String,
+      plantId: json['plantId'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
+      mode: IrrigationMode.values.byName(json['mode'] as String),
+      duration: Duration(microseconds: duration),
+      source: DataSource.values.byName(json['source'] as String),
+    );
+  }
 }
 
 class GardenException implements Exception {

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../domain/models.dart';
 import 'garden_repository.dart';
 
@@ -14,6 +16,10 @@ class SimulatedGardenRepository implements GardenRepository, SimulationControl {
   final Map<String, int> _steps = {};
   bool _pumping = false;
   int _eventId = 0;
+  final String _sessionId = List.generate(
+    4,
+    (_) => Random.secure().nextInt(1 << 30).toRadixString(16),
+  ).join('-');
   SimulationScenario _scenario = SimulationScenario.balanced;
   @override
   DataSource get source => DataSource.simulated;
@@ -112,7 +118,7 @@ class SimulatedGardenRepository implements GardenRepository, SimulationControl {
           ? plant.irrigation.target
           : ((_moisture[plant.id] ?? _baseline) + 8).clamp(0, 100).toDouble();
       return IrrigationEvent(
-        id: 'sim-${++_eventId}',
+        id: 'sim-$_sessionId-${++_eventId}',
         plantId: plant.id,
         timestamp: _clock(),
         mode: mode,

@@ -13,12 +13,15 @@ firmware/   Código do Arduino/ESP32, ainda não implementado
 
 - Cadastro, edição e remoção de plantas.
 - Escolha de ícone por planta: hortelã, cidreira ou cebolinha.
-- Umidade do solo e temperatura simuladas, com gráficos e histórico da sessão.
+- Umidade do solo e temperatura simuladas, com gráficos e histórico salvo por planta.
+- Exclusão manual do histórico de uma planta, com confirmação, mantendo seu cadastro.
 - Irrigação manual e automática simuladas, com limites por planta.
 - Temas claro, escuro e do sistema.
 - Salvamento local dos cadastros e preferências.
 
-**O aplicativo ainda funciona inteiramente em simulação.** Não recebe leituras de sensores físicos nem aciona uma bomba real. O histórico recomeça a cada sessão e não há monitoramento em segundo plano.
+**O aplicativo ainda funciona inteiramente em simulação.** Não recebe leituras de sensores físicos nem aciona uma bomba real. Leituras e irrigações ficam salvas neste dispositivo após fechar e reabrir o app; não há monitoramento em segundo plano.
+
+O histórico não expira automaticamente. Excluir uma planta remove seus registros. Não há backup em nuvem: desinstalar o app ou limpar seus dados pode apagar o histórico. Na prévia web, os registros pertencem ao navegador e endereço usados, sem sincronização com o celular.
 
 ## Executar o aplicativo
 

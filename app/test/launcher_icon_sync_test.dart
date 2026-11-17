@@ -50,6 +50,8 @@ void main() {
     await mount(tester, garden);
     expect(calls, isEmpty);
     final initialization = garden.initialize();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
     await tester.pumpAndSettle();
     await initialization;
     expect(calls, ['dark']);

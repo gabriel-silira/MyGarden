@@ -101,7 +101,7 @@ class PlantsScreen extends StatelessWidget {
                     builder: (context) => AlertDialog(
                       title: Text('Remover ${plant.name}?'),
                       content: const Text(
-                        'O cadastro e o histórico desta planta nesta sessão serão removidos.',
+                        'O cadastro e todo o histórico salvo desta planta serão removidos deste dispositivo.',
                       ),
                       actions: [
                         TextButton(

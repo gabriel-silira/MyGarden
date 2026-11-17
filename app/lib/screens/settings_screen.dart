@@ -217,7 +217,7 @@ class SettingsScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       const Text(
                         'Cadastros e preferências ficam neste dispositivo. Nenhum dado é enviado à nuvem. '
-                        'Leituras e eventos são temporários e reiniciados ao abrir o aplicativo.',
+                        'Leituras e irrigações também ficam salvas localmente e continuam disponíveis ao reabrir o aplicativo.',
                       ),
                       const SizedBox(height: 16),
                       TextButton(

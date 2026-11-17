@@ -18,15 +18,97 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   int _hours = 24;
+
+  Future<void> _clearHistory(bool readings) async {
+    final controller = widget.controller;
+    final action = readings ? 'Apagar leituras' : 'Apagar irrigação';
+    final kind = readings ? 'leituras' : 'irrigações';
+    final plant = controller.selectedPlant;
+    if (plant == null || controller.busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$action?'),
+        content: Text(
+          'Todas as $kind de ${plant.name} serão apagadas, '
+          'de todos os períodos. O cadastro da planta será mantido.\n\n'
+          'Essa ação não pode ser desfeita. Novas leituras continuarão sendo salvas.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final cleared = await controller.clearHistory(
+      plant.id,
+      readings: readings,
+      events: !readings,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          cleared
+              ? 'Registros de $kind de ${plant.name} apagados.'
+              : 'Não foi possível apagar o histórico. Tente novamente.',
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title, bool readings) => Row(
+    children: [
+      Expanded(
+        flex: 2,
+        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+      ),
+      const SizedBox(width: 8),
+      Flexible(
+        flex: 3,
+        child: TextButton.icon(
+          onPressed: widget.controller.busy
+              ? null
+              : () => _clearHistory(readings),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+          icon: const Icon(Icons.delete_outline, size: 18),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              readings ? 'Apagar leituras' : 'Apagar irrigação',
+              maxLines: 1,
+              softWrap: false,
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
-    final cutoff = DateTime.now().subtract(Duration(hours: _hours));
+    final cutoff = _hours == 0
+        ? null
+        : DateTime.now().subtract(Duration(hours: _hours));
     final readings = controller.readings
-        .where((r) => !r.timestamp.isBefore(cutoff))
+        .where((r) => cutoff == null || !r.timestamp.isBefore(cutoff))
         .toList();
     final events = controller.events
-        .where((e) => !e.timestamp.isBefore(cutoff))
+        .where((e) => cutoff == null || !e.timestamp.isBefore(cutoff))
         .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,13 +124,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: [1, 24, 168]
+            children: [1, 24, 168, 720, 0]
                 .map(
                   (hours) => ChoiceChip(
                     label: Text(switch (hours) {
                       1 => 'Última hora',
                       24 => '24 horas',
-                      _ => '7 dias',
+                      168 => '7 dias',
+                      720 => '30 dias',
+                      _ => 'Tudo',
                     }),
                     selected: _hours == hours,
                     onSelected: (_) => setState(() => _hours = hours),
@@ -58,8 +142,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 20),
           const Notice(
-            'Dados demonstrativos. Leituras e eventos são mantidos apenas nesta sessão; '
-            'o histórico inicial contém 24 leituras fictícias.',
+            'Dados simulados, salvos neste dispositivo mesmo após fechar o app. '
+            'As leituras demonstrativas iniciais não são recriadas ao reabrir.',
           ),
           const SizedBox(height: 20),
           Surface(
@@ -92,16 +176,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ],
           const SizedBox(height: 28),
-          Text(
-            'Eventos de irrigação',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          _sectionHeader('Eventos de irrigação', false),
           EventList(events: events),
           const SizedBox(height: 24),
-          Text(
-            'Leituras do período (${readings.length})',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          _sectionHeader('Leituras do período (${readings.length})', true),
           const SizedBox(height: 12),
           if (readings.isEmpty)
             const Text(

@@ -244,7 +244,7 @@ class _WateringCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       event == null
-                          ? 'Nenhuma irrigação nesta sessão'
+                          ? 'Nenhuma irrigação registrada'
                           : 'Última irrigação: ${dateLabel(event.timestamp)}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),

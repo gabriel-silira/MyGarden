@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'data/preferences_store.dart';
+import 'data/local_history_store.dart';
 import 'data/simulated_garden_repository.dart';
 import 'state/garden_controller.dart';
 import 'platform/launcher_icon_sync.dart';
@@ -11,6 +12,7 @@ void main() {
   final controller = GardenController(
     repository: SimulatedGardenRepository(),
     preferencesStore: LocalPreferencesStore(),
+    historyStore: createLocalHistoryStore(),
   );
   runApp(
     LauncherIconSync(

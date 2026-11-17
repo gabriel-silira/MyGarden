@@ -141,7 +141,7 @@ class _MonitoringScreenState extends State<MonitoringScreen> {
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'Cenários e faixas são demonstrativos. Os períodos filtram somente o histórico disponível nesta sessão.',
+                  'Cenários e faixas são demonstrativos. Os períodos filtram o histórico salvo neste dispositivo.',
                 ),
               ],
             ),

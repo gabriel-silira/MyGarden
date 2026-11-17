@@ -1,15 +1,22 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
 import '../data/garden_repository.dart';
 import '../data/preferences_store.dart';
+import '../data/history_store.dart';
 import '../domain/models.dart';
 
 class GardenController extends ChangeNotifier {
-  GardenController({required this.repository, required this.preferencesStore});
+  GardenController({
+    required this.repository,
+    required this.preferencesStore,
+    HistoryStore? historyStore,
+  }) : historyStore = historyStore ?? MemoryHistoryStore();
   final GardenRepository repository;
   final PreferencesStore preferencesStore;
+  final HistoryStore historyStore;
   final List<Plant> _plants = [
     Plant(
       id: 'mint',
@@ -34,8 +41,23 @@ class GardenController extends ChangeNotifier {
   bool _disposed = false;
   PumpState pump = PumpState.idle;
   String? error;
-  String? storageWarning;
+  String? _preferencesWarning;
+  String? _historyWarning;
+  final Set<String> _damagedHistory = {};
+  String? get storageWarning {
+    final warnings = [
+      _preferencesWarning,
+      _historyWarning,
+    ].whereType<String>().toList();
+    return warnings.isEmpty ? null : warnings.join('\n');
+  }
+
   Future<void> _saveQueue = Future.value();
+  Future<void>? _historySaveQueue;
+  final Set<String> _historyLoaded = {};
+  final Set<String> _pendingHistoryPlants = {};
+  final List<SensorReading> _pendingReadings = [];
+  final List<IrrigationEvent> _pendingEvents = [];
   List<Plant> get plants => List.unmodifiable(_plants);
   Plant? get selectedPlant =>
       _plants.where((p) => p.id == selectedId).firstOrNull;
@@ -85,21 +107,26 @@ class GardenController extends ChangeNotifier {
         selectedId = _plants.firstOrNull?.id;
       }
     } catch (_) {
-      storageWarning = 'Não foi possível recuperar as preferências. Usando os padrões desta sessão.';
+      _preferencesWarning = 'Não foi possível recuperar as preferências. Usando os padrões desta sessão.';
     }
     // Apply restored appearance while readings are still loading.
     _emit();
-    try {
-      for (final plant in _plants) {
-        _history[plant.id] = await repository.history(plant);
+    for (final plant in _plants) {
+      try {
+        await _restoreHistory(plant, seedDemonstration: true);
+      } catch (_) {
+        _historyWarning = 'Não foi possível abrir o histórico salvo. Os registros anteriores serão preservados.';
+      }
+      try {
         _record(
           await repository.read(plant, temperatureEnabled: temperatureEnabled),
           plant.id,
         );
+      } catch (e) {
+        error = _message(e);
       }
-    } catch (e) {
-      error = _message(e);
     }
+    await _flushHistory();
     initialized = true;
     busy = false;
     _emit();
@@ -108,7 +135,7 @@ class GardenController extends ChangeNotifier {
   String _message(Object error) => error is GardenException
       ? error.message
       : 'Não foi possível concluir a operação. Tente atualizar novamente.';
-  Future<void> _save() {
+  Future<bool> _save() {
     final value = jsonEncode({
       'version': 1,
       'theme': themeMode.name,
@@ -116,16 +143,94 @@ class GardenController extends ChangeNotifier {
       'temperature': temperatureEnabled,
       'plants': _plants.map((p) => p.toJson()).toList(),
     });
-    _saveQueue = _saveQueue.then((_) async {
+    final saved = _saveQueue.then((_) async {
+      var success = false;
       try {
         await preferencesStore.write(value);
-        storageWarning = null;
+        _preferencesWarning = null;
+        success = true;
       } catch (_) {
-        storageWarning = 'As alterações valem nesta sessão, mas não puderam ser salvas no dispositivo.';
+        _preferencesWarning = 'As alterações valem nesta sessão, mas não puderam ser salvas no dispositivo.';
       }
       _emit();
+      return success;
     });
-    return _saveQueue;
+    _saveQueue = saved.then((_) {});
+    return saved;
+  }
+
+  Future<void> _restoreHistory(
+    Plant plant, {
+    bool seedDemonstration = false,
+  }) async {
+    if (_historyLoaded.contains(plant.id)) return;
+    final saved = await historyStore.read(plant.id);
+    final initial =
+        saved?.readings ??
+        (seedDemonstration
+            ? await repository.history(plant)
+            : <SensorReading>[]);
+    final combined = <String, SensorReading>{
+      for (final reading in [...initial, ...?_history[plant.id]])
+        readingKey(reading): reading,
+    }.values.toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    _history[plant.id] = combined;
+    final events = <String, IrrigationEvent>{
+      for (final event in [...?saved?.events, ..._events])
+        '${event.plantId}/${event.id}': event,
+    }.values.toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    _events
+      ..clear()
+      ..addAll(events);
+    _historyLoaded.add(plant.id);
+    if (saved == null) {
+      _pendingReadings.addAll(initial);
+      _pendingHistoryPlants.add(plant.id);
+    }
+    if (saved?.hasInvalidRecords ?? false) _damagedHistory.add(plant.id);
+  }
+
+  Future<void> _flushHistory() {
+    _historySaveQueue = (_historySaveQueue ?? Future<void>.value()).then((
+      _,
+    ) async {
+      var failed = false;
+      for (final plant in List<Plant>.of(_plants)) {
+        try {
+          // A failed read never turns into an overwrite of the existing database.
+          await _restoreHistory(plant);
+          final readings = _pendingReadings
+              .where((r) => r.plantId == plant.id)
+              .toList();
+          final events = _pendingEvents
+              .where((e) => e.plantId == plant.id)
+              .toList();
+          if (readings.isEmpty &&
+              events.isEmpty &&
+              !_pendingHistoryPlants.contains(plant.id)) {
+            continue;
+          }
+          await historyStore.append(
+            plant.id,
+            readings: readings,
+            events: events,
+          );
+          _pendingReadings.removeWhere(readings.contains);
+          _pendingEvents.removeWhere(events.contains);
+          _pendingHistoryPlants.remove(plant.id);
+        } catch (_) {
+          failed = true;
+        }
+      }
+      _historyWarning = failed
+          ? 'Não foi possível salvar o histórico. Mantenha o app aberto e tente atualizar novamente.'
+          : _damagedHistory.isNotEmpty
+          ? 'Alguns registros do histórico não puderam ser lidos. Os demais foram recuperados; os dados originais foram preservados.'
+          : null;
+      _emit();
+      _historySaveQueue = null;
+    });
+    return _historySaveQueue!;
   }
 
   void selectPlant(String id) {
@@ -139,8 +244,11 @@ class GardenController extends ChangeNotifier {
     _latest[plantId] = reading;
     if (reading != null) {
       final history = _history.putIfAbsent(plantId, () => []);
+      final key = readingKey(reading);
+      if (history.any((r) => readingKey(r) == key)) return;
       history.add(reading);
-      if (history.length > 500) history.removeRange(0, history.length - 500);
+      history.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      _pendingReadings.add(reading);
     }
   }
 
@@ -165,6 +273,7 @@ class GardenController extends ChangeNotifier {
     } catch (e) {
       error = _message(e);
     } finally {
+      await _flushHistory();
       busy = false;
       pump = PumpState.idle;
       _emit();
@@ -176,7 +285,9 @@ class GardenController extends ChangeNotifier {
     _emit();
     final event = await repository.irrigate(plant, mode: mode);
     _events.insert(0, event);
-    if (_events.length > 200) _events.removeLast();
+    _pendingEvents.add(event);
+    // Persist a completed irrigation even if its following sensor read fails.
+    await _flushHistory();
     _record(
       await repository.read(plant, temperatureEnabled: temperatureEnabled),
       plant.id,
@@ -198,6 +309,7 @@ class GardenController extends ChangeNotifier {
     } catch (e) {
       error = _message(e);
     } finally {
+      await _flushHistory();
       busy = false;
       pump = PumpState.idle;
       _emit();
@@ -279,22 +391,71 @@ class GardenController extends ChangeNotifier {
     await refresh();
   }
 
+  Future<bool> clearHistory(
+    String plantId, {
+    bool readings = true,
+    bool events = true,
+  }) async {
+    if (busy || !_plants.any((p) => p.id == plantId)) return false;
+    busy = true;
+    _emit();
+    try {
+      await _historySaveQueue;
+      await historyStore.clear(plantId, readings: readings, events: events);
+      if (readings) _history[plantId] = [];
+      if (events) _events.removeWhere((e) => e.plantId == plantId);
+      if (readings) _pendingReadings.removeWhere((r) => r.plantId == plantId);
+      if (events) _pendingEvents.removeWhere((e) => e.plantId == plantId);
+      _pendingHistoryPlants.remove(plantId);
+      _historyLoaded.add(plantId);
+      _damagedHistory.remove(plantId);
+      // Re-evaluate storage warnings without restoring the deleted records.
+      await _flushHistory();
+      return true;
+    } catch (_) {
+      _historyWarning = 'Não foi possível apagar o histórico. Tente novamente.';
+      return false;
+    } finally {
+      busy = false;
+      _emit();
+    }
+  }
+
   Future<void> removePlant(String id) async {
     if (busy) return;
+    busy = true;
     _plants.removeWhere((p) => p.id == id);
     _history.remove(id);
     _latest.remove(id);
     _events.removeWhere((e) => e.plantId == id);
+    _pendingReadings.removeWhere((r) => r.plantId == id);
+    _pendingEvents.removeWhere((e) => e.plantId == id);
+    _pendingHistoryPlants.remove(id);
+    _historyLoaded.remove(id);
     if (selectedId == id) selectedId = _plants.firstOrNull?.id;
     error = null;
     _emit();
-    await _save();
+    if (await _save()) {
+      try {
+        await _historySaveQueue;
+        await historyStore.remove(id);
+      } catch (_) {
+        _historyWarning = 'A planta foi removida, mas não foi possível apagar seu histórico do dispositivo.';
+      }
+    }
+    busy = false;
+    _emit();
   }
 
   @override
   void dispose() {
     _disposed = true;
     repository.dispose();
+    unawaited(
+      (_historySaveQueue ?? Future<void>.value())
+          .then((_) => historyStore.close())
+          .catchError((Object _) {}),
+    );
     super.dispose();
   }
 }

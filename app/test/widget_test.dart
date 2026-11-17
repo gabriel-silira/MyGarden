@@ -56,6 +56,33 @@ class PendingPreferencesStore implements PreferencesStore {
 }
 
 void main() {
+  for (final mode in [ThemeMode.light, ThemeMode.dark]) {
+    testWidgets('apagar histórico exige confirmação em ${mode.name}', (
+      tester,
+    ) async {
+      final c = await launch(tester, const Size(342, 714), textScale: 1.3);
+      await c.setTheme(mode);
+      await tester.pumpAndSettle();
+      await navigate(tester, 2);
+      await tapText(tester, 'Histórico completo');
+      await tapText(tester, 'Apagar leituras');
+      expect(
+        find.textContaining('Todas as leituras de Hortelã'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tapText(tester, 'Cancelar');
+      expect(c.readings, isNotEmpty);
+      await tapText(tester, 'Apagar leituras');
+      await tester.tap(find.widgetWithText(FilledButton, 'Apagar leituras'));
+      await tester.pumpAndSettle();
+      expect(c.readings, isEmpty);
+      expect(c.plants, hasLength(1));
+      expect(find.text('Registros de leituras de Hortelã apagados.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final readFails in [false, true]) {
     testWidgets('carregamento termina com falha de leitura: $readFails', (
       tester,
@@ -78,6 +105,9 @@ void main() {
       } else {
         store.result.complete(null);
       }
+      // Drain storage microtasks before advancing the simulator's zero timer.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
       await tester.pumpAndSettle();
       await initialization;
       expect(find.byType(LoadingScreen), findsNothing);

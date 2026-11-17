@@ -8,7 +8,7 @@ import 'plant_icon.dart';
 String clockLabel(DateTime date) =>
     '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 String dateLabel(DateTime date) =>
-    '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')} • ${clockLabel(date)}';
+    '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}${date.year == DateTime.now().year ? '' : '/${date.year}'} • ${clockLabel(date)}';
 String numberLabel(double value) =>
     value.toStringAsFixed(1).replaceAll('.', ',');
 String conditionLabel(SoilCondition condition) => switch (condition) {
