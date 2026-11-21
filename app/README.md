@@ -20,7 +20,7 @@ O histórico fica em uma base local separada das preferências (arquivo no Andro
 
 ## Integração futura com Arduino
 
-Futuramente, o MyGarden será integrado a um sistema físico com Arduino/ESP32 e sensores, permitindo acompanhar dados reais das plantas e controlar a irrigação de verdade. A comunicação com o hardware e o acionamento da bomba ainda serão desenvolvidos e validados. O código será organizado em [firmware/](../firmware/README.md); essa parte ainda não foi implementada.
+O [firmware C++ do ESP32](../firmware/README.md) foi preparado para o protótipo com um sensor de solo e uma bomba, incluindo API HTTP local, calibração e limites de acionamento. O aplicativo continua em simulação e ainda não envia comandos a esse firmware. Após a montagem, será necessário implementar o adaptador de comunicação, vincular uma planta ao dispositivo e validar o circuito em bancada. Consulte o [protocolo](../firmware/API.md) e o [plano de integração](../firmware/INTEGRACAO_APP.md). Nenhum hardware foi gravado ou acionado nesta etapa.
 
 ## Executar o projeto
 

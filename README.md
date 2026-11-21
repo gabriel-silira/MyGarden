@@ -1,12 +1,12 @@
 # MyGarden
 
-Projeto pessoal para acompanhar plantas e organizar os cuidados com um jardim, reunindo o aplicativo Flutter e o espaço para o futuro firmware Arduino/ESP32.
+Projeto pessoal para acompanhar plantas e organizar os cuidados com um jardim, reunindo o aplicativo Flutter e o firmware C++ do protótipo ESP32.
 
 ## Organização
 
 ```text
 app/        Aplicativo Flutter para Android, com suporte web para testes
-firmware/   Código do Arduino/ESP32, ainda não implementado
+firmware/   Firmware C++ ESP32 e protocolo local para a futura integração física
 ```
 
 ## O que funciona hoje
@@ -37,4 +37,4 @@ Os comandos Flutter devem ser executados dentro de `app/`. Consulte o [README do
 
 ## Integração futura
 
-O objetivo é integrar o aplicativo a um sistema físico com Arduino/ESP32, sensores e irrigação. O protocolo de comunicação e o acionamento real ainda serão desenvolvidos e validados. A pasta [firmware/](firmware/README.md) está reservada para essa parte do projeto.
+O [firmware C++ do ESP32](firmware/README.md) foi preparado para um sensor de solo e uma bomba, com API HTTP local, calibração e limites de acionamento. O aplicativo continua em simulação: o adaptador Flutter, o vínculo com a planta e a validação do circuito serão feitos após a montagem. Não houve gravação em placa nem teste físico nesta etapa. Consulte o [protocolo](firmware/API.md) e o [plano de integração com o app](firmware/INTEGRACAO_APP.md).

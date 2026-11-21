@@ -1,0 +1,5 @@
+.pio/
+.pio-core/
+.tools/
+build/
+include/secrets.h
